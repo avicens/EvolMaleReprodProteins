@@ -1,6 +1,6 @@
-genedir<-"/home/uvi/be/avs/lustre/evolution_male_reprod_proteomes/genes"
+genedir<-"/home/uvi/be/avs/lustre/evolution_male_reprod_proteomes/genes/testis"
 genelist<-list.files(genedir)
-evoldata<-data.frame(gene=genelist)
+evoltestis<-data.frame(gene=genelist)
 
 library(stringr)
 #Add columns with number of sequences and sequence length
@@ -16,9 +16,6 @@ for (i in 1:length(genelist)){
   
 }
 
-evoldata<-cbind(evoldata,nseqs,seqlength)
-
-#Get columns with evolutionary rates (dN, dS, dN/dS)
 dN<-as.numeric()
 dS<-as.numeric()
 dNdS<-as.numeric()
@@ -27,12 +24,10 @@ for (i in 1:length(genelist)){
   
   myfile<-readLines(paste(genedir,"/",genelist[i],"/paml/","M0/out",sep=""))
   
-    dN[i]<-as.numeric(str_sub(grep("dN:",myfile,value = T), start=-6))
+  dN[i]<-as.numeric(str_sub(grep("dN:",myfile,value = T), start=-6))
   dS[i]<-as.numeric(str_sub(grep("dS:",myfile,value = T), start=-7))
   dNdS[i]<-as.numeric(str_sub(grep("omega",myfile,value = T), start=-7))
 }
-
-evoldata<-cbind(evoldata,dN,dS,dNdS)
 
 ##Get columns with results from selection models (M8 vs M8a)
 lhM8=as.numeric()
@@ -49,11 +44,10 @@ for (i in 1:length(genelist)){
   
 }
 
-lrt<-2*(lhM8-lhM8a)
-pval<-1-pchisq(lrt,1) #Likelihood ratio test
+lrt<-1-pchisq(2*(lhM8-lhM8a),1) #Likelihood ratio test
 padj<-p.adjust(lrt,method="fdr", n=length(lrt)) #Correct p-value for multiple testing
 
-#Positive selection (yes/no)
+
 psgenes<-character()
 
 for (i in 1:nrow(evoldata)) {
@@ -73,28 +67,30 @@ for (i in 1:length(genelist)){
 }
 
 evoldata<-cbind(evoldata, lhM8a,lhM8,lrt, padj, psgenes,pss)
+psgenes<-character()
 
-#Add the tissue for each gene
-##Epididymis
-epid_df<-read.table("data/tissue_specificity_rna_epididymis.tsv",header=T,sep="\t")
-epid_dnds<-evoldata[evoldata$gene %in% epid_df[,1],]
-epid_dnds$tissue<-rep("epididymis",nrow(epid_dnds))
-epid_dnds$expression<-epid_df[epid_df$Gene %in% evoldata$gene,16]
-rm(epid_df)
+for (i in 1:nrow(evoltestis)) {
+  if (padj[i] < 0.05) {
+    psgenes[i]="yes"
+  }
+  else {psgenes[i] = "no"}
+  
+}
 
-##Prostate
-prost_df<-read.table("data/tissue_specificity_rna_prostate.tsv",header=T,sep="\t")
-prost_dnds<-evoldata[evoldata$gene %in% prost_df[,1],]
-prost_dnds$tissue<-rep("prostate",nrow(prost_dnds))
-prost_dnds$expression<-prost_df[prost_df$Gene %in% evoldata$gene,16]
-rm(prost_df)
+#Number of sites under positive selection
+pss<-as.numeric()
 
-##Seminal fluid
-semin_df<-read.table("data/tissue_specificity_rna_seminal.tsv",header=T,sep="\t")
-semin_dnds<-evoldata[evoldata$gene %in% semin_df[,1],]
-semin_dnds$tissue<-rep("SV",nrow(semin_dnds))
-semin_dnds$expression<-semin_df[semin_df$Gene %in% evoldata$gene,16]
-rm(semin_df)
+for (i in 1:length(genelist)){
+  myfile_lrtM8<-readLines(paste(genedir,"/",genelist[i],"/",genelist[i],"_paml.out",sep=""))
+  pss[i]<-length(grep("selected",myfile_lrtM8))
+}
 
-#Concatenate data frames
-evoltissues<-rbind(epid_dnds,prost_dnds,semin_dnds)
+evoltestis<-cbind(evoltestis,nseqs,seqlength,dN,dS,dNdS,lhM8,lhM8a,lrt,padj,psgenes,pss)
+evoltestis$tissue<-rep("testis",nrow(evoltestis))
+
+testis_df<-read.table("data/testis.tsv",sep="\t",header=T)
+evoltestis$expression<-testis_df[testis_df$Gene %in% evoltestis$gene,3]
+
+m<-merge(evoltestis,testis_df[c(1,3)],by.x="gene", by.y="Gene")
+colnames(m)[14]="expression"
+evoltestis<-m
