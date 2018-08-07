@@ -1,8 +1,21 @@
-genedir<-"/home/uvi/be/avs/lustre/evolution_male_reprod_proteomes/genes/"
+#Loading arguments
+args<-commandArgs(TRUE)
+if(length(args)!=2){
+  cat("Usage: Rscript build_evoldata.R <genedir> <outputFile>\n")
+  cat("\t<genedir>: Path to gene folders\n")
+  cat("\t<outputFile<: Path to outputfile\n")
+  q()
+}
+
+#Saving arguments
+genedir<-args[1]
+outputFile<-args[2]
+
+
 genelist<-list.files(genedir)
 evoldata<-data.frame(gene=genelist)
-
 library(stringr)
+
 #Add columns with number of sequences and sequence length
 nseqs<-as.numeric()
 seqlength<-as.numeric()
@@ -65,8 +78,10 @@ for (i in 1:nrow(evoldata)) {
 pss<-as.numeric()
 
 for (i in 1:length(genelist)){
-  myfile_lrtM8<-readLines(paste(genedir,"/",genelist[i],"/paml/",genelist[i],"_M8_M8a.out",sep=""))
+  myfile_lrtM8<-readLines(paste(genedir,"/",genelist[i],"/",genelist[i],"_paml.out",sep=""))
   pss[i]<-length(grep("selected",myfile_lrtM8))
 }
 
 evoldata<-cbind(evoldata, nseqs, seqlength,dN,dS,dNdS,lhM8a,lhM8,lrt, padj, psgenes,pss)
+
+write.table(evoldata, file=outputFile, quote=FALSE, sep="\t", row.names=FALSE,col.names=TRUE)
