@@ -1,22 +1,32 @@
 #Loading arguments
 args<-commandArgs(TRUE)
-if(length(args)!=2){
+if(length(args)!=4){
   cat("Usage: Rscript build_evoldata.R <genedir> <outputFile>\n")
   cat("\t<genedir>: Path to gene folders\n")
-  cat("\t<outputFile<: Path to outputfile\n")
+  cat("\t<outputFile>: Path to outputfile\n")
+  cat("\t<tissueData>: The list of tissue enriched genes\n")
+
   q()
 }
 
 #Saving arguments
 genedir<-args[1]
 outputFile<-args[2]
+tissueData<-args[3]
+tissueName<-args[4]
 
 
 genelist<-list.files(genedir)
-evoldata<-data.frame(gene=genelist)
-library(stringr)
+genenames<-data.frame(gene=genelist)
+
+library(data.table)
+tisdf<-fread(tissueData,select=c(1,3,16))
+tisdata<-merge(genenames, tisdf, by.x="gene",by.y="Gene")
+tisdata$Tissue<-rep(tissueName,nrow(tisdata))
+names(tisdata)[3]<-"Expression"
 
 #Add columns with number of sequences and sequence length
+library(stringr)
 nseqs<-as.numeric()
 seqlength<-as.numeric()
 
@@ -66,7 +76,7 @@ padj<-p.adjust(lrt,method="fdr", n=length(lrt)) #Correct p-value for multiple te
 #Positive selection (yes/no)
 psgenes<-character()
 
-for (i in 1:nrow(evoldata)) {
+for (i in 1:length(genelist)) {
   if (padj[i] < 0.05) {
     psgenes[i]="yes"
   }
@@ -82,6 +92,6 @@ for (i in 1:length(genelist)){
   pss[i]<-length(grep("selected",myfile_lrtM8))
 }
 
-evoldata<-cbind(evoldata, nseqs, seqlength,dN,dS,dNdS,lhM8a,lhM8,lrt, padj, psgenes,pss)
-
-write.table(evoldata, file=outputFile, quote=FALSE, sep="\t", row.names=FALSE,col.names=TRUE)
+evoldata<-cbind(genenames,nseqs,seqlength,dN,dS,dNdS,lhM8a,lhM8,lrt, padj, psgenes,pss)
+m<-merge(tisdata,evoldata, by= "gene")
+write.table(m, file=outputFile, quote=FALSE, sep="\t", row.names=FALSE,col.names=TRUE)
